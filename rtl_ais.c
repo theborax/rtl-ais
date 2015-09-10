@@ -46,6 +46,7 @@
 #include <rtl-sdr.h>
 #include "convenience.h"
 #include "aisdecoder/aisdecoder.h"
+#include "mqtt.h"
 
 #define DEFAULT_ASYNC_BUF_NUMBER	12
 #define DEFAULT_BUF_LENGTH		(16 * 16384)
@@ -147,6 +148,11 @@ void usage(void)
 		"\tBuilt-in AIS decoder options:\n"
 		"\t[-h host (default: 127.0.0.1)]\n"
 		"\t[-P port (default: 10110)]\n"
+
+                "\t[-U MQTT URI (default: none)]\n"
+                "\t[-M MQTT username (default: none)]\n"
+                "\t[-m MQTT password (default: none)]\n"
+
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
 		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
@@ -520,11 +526,13 @@ int main(int argc, char **argv)
 	int debug_nmea = 0;
 	char * port=NULL;
 	char * host=NULL;
-
+	char * mqtt_uri=NULL;
+	char * mqtt_user=NULL;
+	char * mqtt_password=NULL;
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:U:M:m:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -580,11 +588,24 @@ int main(int argc, char **argv)
 		case 'n':
 			debug_nmea = 1;
 			break;
+		case 'U':
+			mqtt_uri =strdup(optarg);
+                        break;
+		case 'M':
+                        mqtt_user =strdup(optarg);
+                        break;
+                case 'm':
+                        mqtt_password =strdup(optarg);
+                        break;
 		case '?':
 		default:
 			usage();
 			return 2;
 		}
+	}
+
+	if(mqtt_uri) {
+		initMqConnection(mqtt_uri, mqtt_user, mqtt_password);
 	}
 
 	if (argc <= optind) {
@@ -603,7 +624,7 @@ int main(int argc, char **argv)
 	if(port==NULL){
 		port=strdup("10110");
 	}
-	
+
 	/* precompute rates */
 	dongle_freq = left_freq/2 + right_freq/2;
 	if (edge) {
@@ -629,7 +650,7 @@ int main(int argc, char **argv)
 	left.downsample_passes = i;
 	left.downsample = 1 << i;
 	left.rate_out = left.rate_in / left.downsample;
-	
+
 	right.rate_in = left.rate_in;
 	right.rate_out = left.rate_out;
 	right.downsample = left.downsample;
@@ -733,7 +754,13 @@ int main(int argc, char **argv)
 		}
 	}
 	else{ // Internal AIS decoder
-		int ret=init_ais_decoder(host,port,show_levels,debug_nmea,stereo.bl_len,seconds_for_decoder_stats);
+		int ret=init_ais_decoder(host,
+				port,
+				show_levels,
+				debug_nmea,
+				stereo.bl_len,
+				seconds_for_decoder_stats,
+				mqtt_uri != 0);
 		if(ret != 0){
 			fprintf(stderr,"Error initializing built-in AIS decoder\n");
 			rtlsdr_cancel_async(dev);

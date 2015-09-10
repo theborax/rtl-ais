@@ -37,6 +37,7 @@
 //#include "config.h"
 #include "sounddecoder.h"
 #include "callbacks.h"
+#include "../mqtt.h"
 
 #define MAX_BUFFER_LENGTH 2048
 //#define MAX_BUFFER_LENGTH 8190
@@ -47,7 +48,9 @@ static unsigned int buffer_count=0;
 	WSADATA wsaData;
 #endif
 static int debug_nmea;
+static int send_to_mqtt;
 static int sock;
+
 static struct addrinfo* addr=NULL;
 
 static int initSocket(const char *host, const char *portname);
@@ -67,6 +70,7 @@ void nmea_sentence_received(const char *sentence,
     if (sentences == 1) {
         if (sendto(sock, sentence, length, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
         if (debug_nmea) fprintf(stderr, "%s", sentence);
+	if (send_to_mqtt) addRawMessageToMq(sentence, length);
     } else {
         if (buffer_count + length < MAX_BUFFER_LENGTH) {
             memcpy(&buffer[buffer_count], sentence, length);
@@ -78,25 +82,38 @@ void nmea_sentence_received(const char *sentence,
         if (sentences == sentencenum && buffer_count > 0) {
             if (sendto(sock, buffer, buffer_count, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
             if (debug_nmea) fprintf(stderr, "%s", buffer);
+	    if (send_to_mqtt) addRawMessageToMq(sentence, length);
             buffer_count=0;
         };
     }
 }
-int init_ais_decoder(char * host, char * port ,int show_levels,int _debug_nmea,int buf_len,int time_print_stats){
+int init_ais_decoder(char * host,
+			char * port,
+			int show_levels,
+			int _debug_nmea,
+			int buf_len,
+			int time_print_stats,
+			int _send_to_mqtt){
 	debug_nmea=_debug_nmea;
 	if(debug_nmea)
 		fprintf(stderr,"Log NMEA sentences to console ON\n");
 	else
 		fprintf(stderr,"Log NMEA sentences to console OFF\n");
-		
-    if (!initSocket(host, port)) {
-        return EXIT_FAILURE;
-    }
-    if (show_levels) on_sound_level_changed=sound_level_changed;
-    on_nmea_sentence_received=nmea_sentence_received;
-	initSoundDecoder(buf_len,time_print_stats); 
+
+	send_to_mqtt = _send_to_mqtt;
+	if(send_to_mqtt)
+		fprintf(stderr,"Will send data to MQTT\n");
+	else
+		fprintf(stderr,"Will NOT send data to MQTT\n");
+
+	if (!initSocket(host, port)) {
+        	return EXIT_FAILURE;
+    	}
+    	if (show_levels) on_sound_level_changed=sound_level_changed;
+    	on_nmea_sentence_received=nmea_sentence_received;
+	initSoundDecoder(buf_len,time_print_stats);
 	return 0;
-}	
+}
 
 void run_rtlais_decoder(short * buff, int len)
 {
