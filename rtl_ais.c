@@ -46,7 +46,7 @@
 #include <rtl-sdr.h>
 #include "convenience.h"
 #include "aisdecoder/aisdecoder.h"
-#include "mqtt.h"
+#include "rest.h"
 
 #define DEFAULT_ASYNC_BUF_NUMBER	12
 #define DEFAULT_BUF_LENGTH		(16 * 16384)
@@ -149,9 +149,7 @@ void usage(void)
 		"\t[-h host (default: 127.0.0.1)]\n"
 		"\t[-P port (default: 10110)]\n"
 
-                "\t[-U MQTT URI (default: none)]\n"
-                "\t[-M MQTT username (default: none)]\n"
-                "\t[-m MQTT password (default: none)]\n"
+                "\t[-U REST URI (default: none)]\n"
 
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
@@ -526,13 +524,11 @@ int main(int argc, char **argv)
 	int debug_nmea = 0;
 	char * port=NULL;
 	char * host=NULL;
-	char * mqtt_uri=NULL;
-	char * mqtt_user=NULL;
-	char * mqtt_password=NULL;
+	char * rest_uri=NULL;
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:U:M:m:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:U:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -589,13 +585,7 @@ int main(int argc, char **argv)
 			debug_nmea = 1;
 			break;
 		case 'U':
-			mqtt_uri =strdup(optarg);
-                        break;
-		case 'M':
-                        mqtt_user =strdup(optarg);
-                        break;
-                case 'm':
-                        mqtt_password =strdup(optarg);
+			rest_uri =strdup(optarg);
                         break;
 		case '?':
 		default:
@@ -604,8 +594,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if(mqtt_uri) {
-		initMqConnection(mqtt_uri, mqtt_user, mqtt_password);
+	if(rest_uri) {
+		initRestConnection(rest_uri);
 	}
 
 	if (argc <= optind) {
@@ -760,7 +750,7 @@ int main(int argc, char **argv)
 				debug_nmea,
 				stereo.bl_len,
 				seconds_for_decoder_stats,
-				mqtt_uri != 0);
+				rest_uri != 0);
 		if(ret != 0){
 			fprintf(stderr,"Error initializing built-in AIS decoder\n");
 			rtlsdr_cancel_async(dev);

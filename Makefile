@@ -5,8 +5,8 @@ LDFLAGS+=-lpthread -lm
 UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
 #Conditional for Linux
-CFLAGS+= $(shell pkg-config --cflags librtlsdr)
-LDFLAGS+=$(shell pkg-config --libs librtlsdr) -lpaho-mqtt3c
+CFLAGS+= $(shell pkg-config --cflags librtlsdr json-c)
+LDFLAGS+=$(shell pkg-config --libs librtlsdr json-c) -lcurl
 
 else
 #
@@ -39,7 +39,7 @@ endif
 
 CC?=gcc
 SOURCES= \
-	rtl_ais.c convenience.c mqtt.c \
+	rtl_ais.c convenience.c rest.c \
 	./aisdecoder/aisdecoder.c \
 	./aisdecoder/sounddecoder.c \
 	./aisdecoder/lib/receiver.c \

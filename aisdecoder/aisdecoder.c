@@ -37,7 +37,7 @@
 //#include "config.h"
 #include "sounddecoder.h"
 #include "callbacks.h"
-#include "../mqtt.h"
+#include "../rest.h"
 
 #define MAX_BUFFER_LENGTH 2048
 //#define MAX_BUFFER_LENGTH 8190
@@ -48,7 +48,7 @@ static unsigned int buffer_count=0;
 	WSADATA wsaData;
 #endif
 static int debug_nmea;
-static int send_to_mqtt;
+static int send_to_rest;
 static int sock;
 
 static struct addrinfo* addr=NULL;
@@ -70,7 +70,7 @@ void nmea_sentence_received(const char *sentence,
     if (sentences == 1) {
         if (sendto(sock, sentence, length, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
         if (debug_nmea) fprintf(stderr, "%s", sentence);
-	if (send_to_mqtt) addRawMessageToMq(sentence, length);
+	if (send_to_rest) addRawMessageToRestQueue(sentence, length);
     } else {
         if (buffer_count + length < MAX_BUFFER_LENGTH) {
             memcpy(&buffer[buffer_count], sentence, length);
@@ -82,7 +82,7 @@ void nmea_sentence_received(const char *sentence,
         if (sentences == sentencenum && buffer_count > 0) {
             if (sendto(sock, buffer, buffer_count, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
             if (debug_nmea) fprintf(stderr, "%s", buffer);
-	    if (send_to_mqtt) addRawMessageToMq(sentence, length);
+	    if (send_to_rest) addRawMessageToRestQueue(sentence, length);
             buffer_count=0;
         };
     }
@@ -93,18 +93,16 @@ int init_ais_decoder(char * host,
 			int _debug_nmea,
 			int buf_len,
 			int time_print_stats,
-			int _send_to_mqtt){
+			int _send_to_rest){
 	debug_nmea=_debug_nmea;
 	if(debug_nmea)
 		fprintf(stderr,"Log NMEA sentences to console ON\n");
 	else
 		fprintf(stderr,"Log NMEA sentences to console OFF\n");
 
-	send_to_mqtt = _send_to_mqtt;
-	if(send_to_mqtt)
-		fprintf(stderr,"Will send data to MQTT\n");
-	else
-		fprintf(stderr,"Will NOT send data to MQTT\n");
+	send_to_rest = _send_to_rest;
+	if(send_to_rest)
+		fprintf(stderr,"Will send data to REST interface\n");
 
 	if (!initSocket(host, port)) {
         	return EXIT_FAILURE;
