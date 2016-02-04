@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 #include "mqtt.h"
 #include "MQTTClient.h"
 
@@ -44,6 +45,7 @@ struct queue_message {
 struct queue_message *popFirstMessageInQueue();
 void sendMessagesToMq();
 void sendMessageToMq(struct queue_message *msg);
+void signal_callback_handler(int signum);
 
 /* Initialize things */
 int initMqConnection(char* uri, char* username, char* password) {
@@ -57,7 +59,16 @@ int initMqConnection(char* uri, char* username, char* password) {
 	pthread_mutex_init(&Mqtt.thread_lock,NULL);
 	pthread_create(&Mqtt.sender_thread, NULL, sendMessagesToMq, NULL);
 
+//	signal(SIGPIPE, SIG_IGN);
+/* Catch Signal Handler SIGPIPE */
+signal(SIGPIPE, signal_callback_handler);
+
 	return 0;
+}
+
+/* Catch Signal Handler functio */
+void signal_callback_handler(int signum){
+        printf("Caught signal SIGPIPE %d\n",signum);
 }
 
 void shutdownMqConnection() {
@@ -78,7 +89,7 @@ void addRawMessageToMq(char *data, int length) {
 	    (unsigned long long)(tv.tv_sec) * 1000 +
 	    (unsigned long long)(tv.tv_usec) / 1000;
 
-        data[length] = '\0';
+        data[length-2] = '\0';
 	char *buf = malloc(120);
         sprintf(buf, "{ \"timeSinceEpochUTC\":%llu, \"message\":\"%s\" }", millisecondsSinceEpoch, data);
 	curr->message = buf;
